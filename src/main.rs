@@ -19,6 +19,7 @@ use std::{
 use tokio_postgres::{
     replication::LogicalReplicationStream, types::PgLsn, Client, SimpleQueryMessage,
 };
+use simd_json;
 
 //https://dev.materialize.com/api/rust/mz_postgres_util/struct.Config.html
 //https://github.com/MaterializeInc/materialize/blob/main/src/storage/src/source/postgres.rs#L507
@@ -53,15 +54,15 @@ fn parse_single_row<T: FromStr>(
 
 #[tokio::main]
 async fn main() -> Result<(), ReplicationError> {
-    let mut replication_lsn = PgLsn::from(23525992);
+    let mut replication_lsn = PgLsn::from(0);
 
     let pg_config = tokio_postgres::Config::from_str(
-        "host=127.0.0.1 port=5433 user=postgres password=password dbname=testdb",
+        "host=127.0.0.1 port=5432 user=postgres password=password dbname=testdb",
     )?;
 
     let tunnel_config = mz_postgres_util::TunnelConfig::Direct;
     let connection_config = Config::new(pg_config, tunnel_config)?;
-    let slot = "snot";
+    let slot = "tremor";
 
     let publication = "testpub";
     let source_id = "source_id";
@@ -129,7 +130,7 @@ async fn main() -> Result<(), ReplicationError> {
                 dbg!(e);
                 let res = client
                     .simple_query(&format!(
-                        r#"CREATE_REPLICATION_SLOT {:?} LOGICAL "pgoutput" USE_SNAPSHOT"#,
+                        r#"CREATE_REPLICATION_SLOT {:?} LOGICAL "wal2json" USE_SNAPSHOT"#,
                         slot
                     ))
                     .await?;
@@ -412,9 +413,17 @@ async fn produce_replication<'a>(
                 let mut needs_status_update = last_feedback.elapsed() > FEEDBACK_INTERVAL;
 
                 match stream.as_mut().next().await {
-                    Some(Ok(ReplicationMessage::XLogData(xlog_data))) => {
-                        last_data_message = Instant::now();
-                        yield xlog_data;
+                    Some(Ok(ReplicationMessage::XLogData(xlog_data))) => match xlog_data.data() {
+                        LogicalReplicationMessage::Insert(insert) => {
+                            dbg!(insert);
+                            let rel_id = insert.rel_id();
+                            simd_json::
+                            yield xlog_data;
+                        },
+                        _ => {
+                            last_data_message = Instant::now();
+                            yield xlog_data;
+                        }
                     }
                     // Some(Ok(XLogData(xlog_data))) => match xlog_data.data() {
                     //     Begin(_) => {
