@@ -5,7 +5,7 @@ use mz_postgres_util::{desc::PostgresTableDesc, Config};
 use mz_repr::{Datum, DatumVec, Row};
 use once_cell::sync::Lazy;
 use postgres_protocol::message::backend::{
-    LogicalReplicationMessage, ReplicationMessage, XLogDataBody,
+    LogicalReplicationMessage, ReplicationMessage, XLogDataBody, TupleData
 };
 use std::{
     collections::BTreeMap,
@@ -19,7 +19,9 @@ use std::{
 use tokio_postgres::{
     replication::LogicalReplicationStream, types::PgLsn, Client, SimpleQueryMessage,
 };
-use simd_json;
+use simd_json::{Mutable, OwnedValue};
+use bytes::{Buf, Bytes};
+use std::str;
 
 //https://dev.materialize.com/api/rust/mz_postgres_util/struct.Config.html
 //https://github.com/MaterializeInc/materialize/blob/main/src/storage/src/source/postgres.rs#L507
@@ -62,9 +64,9 @@ async fn main() -> Result<(), ReplicationError> {
 
     let tunnel_config = mz_postgres_util::TunnelConfig::Direct;
     let connection_config = Config::new(pg_config, tunnel_config)?;
-    let slot = "tremor";
+    let slot = "games";
 
-    let publication = "testpub";
+    let publication = "gamespub";
     let source_id = "source_id";
 
     if replication_lsn == PgLsn::from(0) {
@@ -215,6 +217,7 @@ async fn main() -> Result<(), ReplicationError> {
     // partially emitted a transaction, but we know it is the case due to the implementation. Find
     // a way to encode this in the type signature
     while let Some(event) = replication_stream.next().await.transpose()? {
+        dbg!(event);
         // match event {
         //     Event::Message(lsn, (output, row, diff)) => {
         //         task_info.row_sender.send_row(output, row, lsn, diff).await;
@@ -228,7 +231,8 @@ async fn main() -> Result<(), ReplicationError> {
         //     }
         // }
         // replication_lsn = PgLsn::from(event.wal_end() - 1);
-        dbg!(event.wal_end(), event);
+        // TODO: uncomment this?
+        // dbg!(event.wal_end(), event);
     }
 
     println!("Hello, world!");
@@ -363,7 +367,7 @@ async fn produce_replication<'a>(
     publication: &'a str,
     as_of: PgLsn,
     committed_lsn: Arc<AtomicU64>,
-) -> impl Stream<Item = Result<XLogDataBody<LogicalReplicationMessage>, ReplicationError>> + 'a {
+) -> impl Stream<Item = Result<OwnedValue, ReplicationError>> + 'a {
     async_stream::try_stream!({
         // //let mut last_data_message = Instant::now();
         // let mut inserts = vec![];
@@ -416,13 +420,45 @@ async fn produce_replication<'a>(
                     Some(Ok(ReplicationMessage::XLogData(xlog_data))) => match xlog_data.data() {
                         LogicalReplicationMessage::Insert(insert) => {
                             dbg!(insert);
-                            let rel_id = insert.rel_id();
-                            simd_json::
-                            yield xlog_data;
+                            let mut formatted = format!(
+                                r#"{{"operation":"insert","relation_id":{}}}"#,
+                                insert.rel_id()
+                            );
+                            let vec = unsafe { formatted.as_bytes_mut() };
+                            let mut json = simd_json::to_owned_value(vec).unwrap();
+                            let mut values: Vec<&str> = vec![];
+                            for tuple_value in insert.tuple().tuple_data() {
+                                dbg!(tuple_value);
+                                match tuple_value {
+                                    TupleData::Null => print!("NULLLLLLL"),
+                                    TupleData::Text(data) => {
+                                        let vec = data.to_vec();
+                                        let slice = vec.as_slice();
+                                        values.push(str::from_utf8(slice).unwrap());
+                                    },
+                                    _ => print!("OTHERRRR"),
+                                }
+                            }
+                            json.insert("values", values).unwrap();
+                            yield json
+                        },
+                        LogicalReplicationMessage::Update(update) => {
+                            dbg!(update);
+                            let mut formatted = format!(
+                                r#"{{"operation":"insert","relation_id":{}}}"#,
+                                update.rel_id()
+                            );
+                            let vec = unsafe { formatted.as_bytes_mut() };
+                            let mut json = simd_json::to_owned_value(vec).unwrap();
+                            let values = vec!["1", "2"];
+                            json.insert("values", values).unwrap();
+                            yield json
                         },
                         _ => {
                             last_data_message = Instant::now();
-                            yield xlog_data;
+                            // yield xlog_data;
+                            let mut test = br#"{"yo": "OTHER"}"#.to_vec();
+                            yield simd_json::to_owned_value(&mut test).unwrap()
                         }
                     }
                     // Some(Ok(XLogData(xlog_data))) => match xlog_data.data() {
