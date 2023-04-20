@@ -2,7 +2,7 @@ version: "3.4"
 
 services:
   db:
-    image: wayfair/postgres
+    image: postgres:14.5
     container_name: db
     build:
       context: .
@@ -11,7 +11,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-    command: -c wal_level=logical -c shared_preload_libraries=wal2json
+    command: -c wal_level=logical
     ports:
       - 5432:5432
 

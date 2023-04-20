@@ -132,7 +132,7 @@ async fn main() -> Result<(), ReplicationError> {
                 dbg!(e);
                 let res = client
                     .simple_query(&format!(
-                        r#"CREATE_REPLICATION_SLOT {:?} LOGICAL "wal2json" USE_SNAPSHOT"#,
+                        r#"CREATE_REPLICATION_SLOT {:?} LOGICAL "pgoutput" USE_SNAPSHOT"#,
                         slot
                     ))
                     .await?;
@@ -398,6 +398,7 @@ async fn produce_replication<'a>(
                 lsn = last_commit_lsn,
                 publication = publication
             );
+            // dbg!(&query);
             let copy_stream = client.copy_both_simple(&query).await?;
             let mut stream = Box::pin(LogicalReplicationStream::new(copy_stream));
 
@@ -426,15 +427,15 @@ async fn produce_replication<'a>(
                             );
                             let vec = unsafe { formatted.as_bytes_mut() };
                             let mut json = simd_json::to_owned_value(vec).unwrap();
-                            let mut values: Vec<&str> = vec![];
+                            let mut values: Vec<std::string::String> = vec![];
                             for tuple_value in insert.tuple().tuple_data() {
                                 dbg!(tuple_value);
                                 match tuple_value {
                                     TupleData::Null => print!("NULLLLLLL"),
                                     TupleData::Text(data) => {
                                         let vec = data.to_vec();
-                                        let slice = vec.as_slice();
-                                        values.push(str::from_utf8(slice).unwrap());
+                                        // let slice = vec.as_slice();
+                                        values.push(std::string::String::from_utf8(vec).unwrap());
                                     },
                                     _ => print!("OTHERRRR"),
                                 }
