@@ -2977,8 +2977,6 @@ dependencies = [
  "mz-repr",
  "once_cell",
  "postgres-protocol",
- "serde",
- "serde_json",
  "simd-json",
  "tokio",
  "tokio-postgres",
