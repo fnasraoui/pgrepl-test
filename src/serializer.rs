@@ -1,8 +1,6 @@
 use postgres_protocol::message::backend::*;
-use serde::ser::Error;
-use serde::Serializer;
-use serde::Serialize;
-use serde::ser::SerializeStruct;
+use serde::{Serializer, Serialize};
+use serde::ser::{Error, SerializeStruct};
 use std::fmt;
 
 /// SerializedTuple: A wrapper struct around a Tuple object that provides a Serialize implementation
