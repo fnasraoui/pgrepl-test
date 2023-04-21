@@ -70,7 +70,9 @@ impl SerializedTupleData {
     }
 }
 
-///SerializedReplicaIdentity: An enum that represents the different types of replica identity that can be configured for a table in PostgreSQL. This struct is used to serialize replica identity information into JSON format.
+///SerializedReplicaIdentity: An enum that represents the different types of replica identity that
+/// can be configured for a table in PostgreSQL. This struct is used to serialize replica identity
+/// information into JSON format.
 #[derive(Serialize)]
 enum SerializedReplicaIdentity {
     Default,
@@ -89,7 +91,9 @@ impl SerializedReplicaIdentity {
     }
 }
 
-///SerializedColumn: A struct that represents a PostgreSQL column, with information about the column's flags, name, type ID, and type modifier. This struct is used to serialize column information into JSON format.
+///SerializedColumn: A struct that represents a PostgreSQL column, with information about
+/// the column's flags, name, type ID, and type modifier.
+/// This struct is used to serialize column information into JSON format.
 #[derive(Debug, Serialize)]
 pub struct SerializedColumn<'a> {
     flags: i8,
@@ -109,7 +113,9 @@ impl<'a> From<&'a Column> for SerializedColumn<'a> {
     }
 }
 
-///SerializedColumns: A wrapper struct around an array of Column objects that provides a From implementation for it. This struct is used to serialize an array of columns into JSON format.
+///SerializedColumns: A wrapper struct around an array of Column objects that provides a
+/// From implementation for it. This struct is used to serialize
+/// an array of columns into JSON format.
 #[derive(Debug, Serialize)]
 pub struct SerializedColumns<'a> {
     columns: Vec<SerializedColumn<'a>>,
@@ -123,7 +129,9 @@ impl<'a> From<&'a [Column]> for SerializedColumns<'a> {
     }
 }
 
-///CustomError: A struct that represents a custom error type. This struct is used to wrap errors from the std::io module and provide a custom error message when they occur.
+///CustomError: A struct that represents a custom error type.
+/// This struct is used to wrap errors from the std::io module and
+/// provide a custom error message when they occur.
 #[derive(Debug)]
 pub struct CustomError {
     message: String,
@@ -152,7 +160,9 @@ impl fmt::Display for CustomError {
     }
 }
 
-///SerializedXLogDataBody: A wrapper struct around a XLogDataBody object that provides a Serialize implementation for it. This struct is used to serialize logical replication messages into JSON format.
+///SerializedXLogDataBody: A wrapper struct around a XLogDataBody object that provides a
+/// Serialize implementation for it.
+/// This struct is used to serialize logical replication messages into JSON format.
 #[derive(Debug)]
 pub(crate) struct SerializedXLogDataBody<T>(pub XLogDataBody<T>);
 
@@ -168,7 +178,10 @@ impl Serialize for SerializedXLogDataBody<LogicalReplicationMessage> {
     }
 }
 
-///SerializedLogicalReplicationMessage: A wrapper struct around a LogicalReplicationMessage object that provides a Serialize implementation for it. This struct is used by SerializedXLogDataBody to serialize the data field of a logical replication message into JSON format.
+///SerializedLogicalReplicationMessage: A wrapper struct around a LogicalReplicationMessage object
+/// that provides a Serialize implementation for it.
+/// This struct is used by SerializedXLogDataBody to serialize
+/// the data field of a logical replication message into JSON format.
 pub(crate) struct SerializedLogicalReplicationMessage<'a>(pub &'a LogicalReplicationMessage);
 
 impl<'a> Serialize for SerializedLogicalReplicationMessage<'a> {
