@@ -4,17 +4,16 @@ use serde::ser::SerializeStruct;
 use postgres_protocol::message::backend::*;
 
 #[derive(Debug)]
-pub(crate) struct SerializedXLogDataBody<T>(XLogDataBody<T>);
+pub(crate) struct SerializedXLogDataBody<T>(pub XLogDataBody<T>);
 
-impl<T: Serialize> Serialize for SerializedXLogDataBody<T> {
+impl Serialize for SerializedXLogDataBody<LogicalReplicationMessage> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        // let data = serde_json::to_string_pretty(&SerializedLogicalReplicationMessage(&self.0.data())).unwrap();
+        let data = &SerializedLogicalReplicationMessage(&self.0.data());
         let mut state = serializer.serialize_struct("XLogDataBody", 3)?;
         state.serialize_field("wal_start", &self.0.wal_start())?;
         state.serialize_field("wal_end", &self.0.wal_end())?;
         state.serialize_field("timestamp", &self.0.timestamp())?;
-        state.serialize_field("data", &self.0.data())?;
-        // state.serialize_field("data", &data)?;
+        state.serialize_field("data", &data)?;
         state.end()
     }
 }

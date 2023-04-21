@@ -429,7 +429,8 @@ async fn produce_replication<'a>(
                                 let serialized_xlog_data = serde_json::to_string_pretty(&SerializedLogicalReplicationMessage(data)).unwrap();
                                 println!("{}", serialized_xlog_data);
                                 println!("======== END OF the COMMIT MESSAGE JSON  ==========");
-
+                                let serialized_xlog = serde_json::to_string_pretty(&SerializedXLogDataBody(xlog_data)).unwrap();
+                                println!("{}", serialized_xlog);
                                 // for (output, row) in deletes.drain(..) {
                                 //     yield Event::Message(last_commit_lsn, (output, row, -1));
                                 // }
