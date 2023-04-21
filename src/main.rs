@@ -4,9 +4,7 @@ use mz_expr::MirScalarExpr;
 use mz_postgres_util::{desc::PostgresTableDesc, Config};
 use mz_repr::{Datum, DatumVec, Row};
 use once_cell::sync::Lazy;
-use postgres_protocol::message::backend::{
-    LogicalReplicationMessage, ReplicationMessage, XLogDataBody,
-};
+use postgres_protocol::message::backend::*;
 use std::{
     collections::BTreeMap,
     env,
@@ -20,6 +18,8 @@ use std::{
 use tokio_postgres::{
     replication::LogicalReplicationStream, types::PgLsn, Client, SimpleQueryMessage,
 };
+mod serializer;
+use serializer::{SerializedLogicalReplicationMessage, SerializedXLogDataBody};
 
 //https://dev.materialize.com/api/rust/mz_postgres_util/struct.Config.html
 //https://github.com/MaterializeInc/materialize/blob/main/src/storage/src/source/postgres.rs#L507
@@ -424,7 +424,29 @@ async fn produce_replication<'a>(
                             LogicalReplicationMessage::Commit(commit) => {
                                 // metrics.transactions.inc();
                                 last_commit_lsn = PgLsn::from(commit.end_lsn());
+                                let data = &xlog_data.data();
+                                println!("======== HERE IS the COMMIT MESSAGE JSON  ==========");
+                                let serialized_xlog_data = serde_json::to_string_pretty(&SerializedLogicalReplicationMessage(data)).unwrap();
+                                println!("{}", serialized_xlog_data);
+                                println!("======== END OF the COMMIT MESSAGE JSON  ==========");
 
+                                // for (output, row) in deletes.drain(..) {
+                                //     yield Event::Message(last_commit_lsn, (output, row, -1));
+                                // }
+                                // for (output, row) in inserts.drain(..) {
+                                //     yield Event::Message(last_commit_lsn, (output, row, 1));
+                                // }
+                                // yield Event::Progress([PgLsn::from(u64::from(last_commit_lsn) + 1)]);
+                                // metrics.lsn.set(last_commit_lsn.into());
+                            }
+                            LogicalReplicationMessage::Begin(begin) => {
+                                // metrics.transactions.inc();
+                                last_commit_lsn = PgLsn::from(begin.final_lsn());
+                                let data = &xlog_data.data();
+                                println!("======== HERE IS the BEGIN MESSAGE JSON  ==========");
+                                let serialized_xlog_data = serde_json::to_string_pretty(&SerializedLogicalReplicationMessage(data)).unwrap();
+                                println!("{}", serialized_xlog_data);
+                                println!("======== END OF the BEGIN MESSAGE JSON  ==========");
                                 // for (output, row) in deletes.drain(..) {
                                 //     yield Event::Message(last_commit_lsn, (output, row, -1));
                                 // }
@@ -437,6 +459,7 @@ async fn produce_replication<'a>(
                             _ => yield xlog_data,
                         }
                     }
+                    //////////////////////////////////////
                     // Some(Ok(XLogData(xlog_data))) => match xlog_data.data() {
                     //     Begin(_) => {
                     //         last_data_message = Instant::now();
@@ -474,14 +497,14 @@ async fn produce_replication<'a>(
                     //             .ok_or_else(err)
                     //             .err_definite()?
                     //             .tuple_data();
-
+                    //
                     //         let mut old_datums = datum_vec.borrow();
                     //         datums_from_tuple(rel_id, old_tuple, &mut *old_datums)
                     //             .err_definite()?;
                     //         let old_row = cast_row(&info.casts, &old_datums).err_definite()?;
                     //         deletes.push((info.output_index, old_row));
                     //         drop(old_datums);
-
+                    //
                     //         // If the new tuple contains unchanged toast values, reuse the ones
                     //         // from the old tuple
                     //         let new_tuple = update
@@ -525,7 +548,7 @@ async fn produce_replication<'a>(
                     //         last_data_message = Instant::now();
                     //         metrics.transactions.inc();
                     //         last_commit_lsn = PgLsn::from(commit.end_lsn());
-
+                    //
                     //         for (output, row) in deletes.drain(..) {
                     //             yield Event::Message(last_commit_lsn, (output, row, -1));
                     //         }
@@ -562,7 +585,7 @@ async fn produce_replication<'a>(
                     //                 );
                     //                 valid_schema_change = false;
                     //             }
-
+                    //
                     //             // Relation messages do not include nullability/primary_key data so we
                     //             // check the name, type_oid, and type_mod explicitly and error if any
                     //             // of them differ
@@ -571,7 +594,7 @@ async fn produce_replication<'a>(
                     //                 let rel_typoid = u32::try_from(rel.type_id()).unwrap();
                     //                 let same_typoid = src.type_oid == rel_typoid;
                     //                 let same_typmod = src.type_mod == rel.type_modifier();
-
+                    //
                     //                 if !same_name || !same_typoid || !same_typmod {
                     //                     warn!(
                     //                         "alter table error: name {}, oid {}, old_schema {:?}, new_schema {:?}",
@@ -580,11 +603,11 @@ async fn produce_replication<'a>(
                     //                         info.desc.columns,
                     //                         relation.columns()
                     //                     );
-
+                    //
                     //                     valid_schema_change = false;
                     //                 }
                     //             }
-
+                    //
                     //             if valid_schema_change {
                     //                 // Because the replication stream doesn't
                     //                 // include columns' attnums, we need to check
@@ -601,7 +624,7 @@ async fn produce_replication<'a>(
                     //                     )
                     //                     .await
                     //                     .err_indefinite()?;
-
+                    //
                     //                 let remote_schema_eq =
                     //                     Some(&info.desc) == current_publication_info.get(0);
                     //                 if !remote_schema_eq {
@@ -612,11 +635,11 @@ async fn produce_replication<'a>(
                     //                     info.desc.columns,
                     //                     current_publication_info.get(0)
                     //                 );
-
+                    //
                     //                     valid_schema_change = false;
                     //                 }
                     //             }
-
+                    //
                     //             if !valid_schema_change {
                     //                 return Err(Definite(anyhow!(
                     //                     "source table {} with oid {} has been altered",
@@ -659,6 +682,7 @@ async fn produce_replication<'a>(
                     //         )))?;
                     //     }
                     // },
+                    ///////////////////
                     Some(Ok(ReplicationMessage::PrimaryKeepAlive(keepalive))) => {
                         needs_status_update = needs_status_update || keepalive.reply() == 1;
                         // observed_wal_end = PgLsn::from(keepalive.wal_end());
