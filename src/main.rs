@@ -19,7 +19,7 @@ use tokio_postgres::{
     replication::LogicalReplicationStream, types::PgLsn, Client, SimpleQueryMessage,
 };
 mod serializer;
-use serializer::{SerializedLogicalReplicationMessage, SerializedXLogDataBody};
+use serializer::SerializedXLogDataBody;
 
 //https://dev.materialize.com/api/rust/mz_postgres_util/struct.Config.html
 //https://github.com/MaterializeInc/materialize/blob/main/src/storage/src/source/postgres.rs#L507
@@ -421,16 +421,15 @@ async fn produce_replication<'a>(
                     Some(Ok(ReplicationMessage::XLogData(xlog_data))) => {
                         last_data_message = Instant::now();
                         match xlog_data.data() {
-                            LogicalReplicationMessage::Commit(commit) => {
+                            LogicalReplicationMessage::Origin(origin) => {
                                 // metrics.transactions.inc();
-                                last_commit_lsn = PgLsn::from(commit.end_lsn());
-                                let data = &xlog_data.data();
-                                println!("======== HERE IS the COMMIT MESSAGE JSON  ==========");
-                                let serialized_xlog_data = serde_json::to_string_pretty(&SerializedLogicalReplicationMessage(data)).unwrap();
-                                println!("{}", serialized_xlog_data);
-                                println!("======== END OF the COMMIT MESSAGE JSON  ==========");
+                                last_commit_lsn = PgLsn::from(origin.commit_lsn());
+
+                                println!("======== ORIGIN  ==========");
                                 let serialized_xlog = serde_json::to_string_pretty(&SerializedXLogDataBody(xlog_data)).unwrap();
                                 println!("{}", serialized_xlog);
+                                println!("======== END OF the ORIGIN MESSAGE JSON  ==========");
+
                                 // for (output, row) in deletes.drain(..) {
                                 //     yield Event::Message(last_commit_lsn, (output, row, -1));
                                 // }
@@ -440,22 +439,49 @@ async fn produce_replication<'a>(
                                 // yield Event::Progress([PgLsn::from(u64::from(last_commit_lsn) + 1)]);
                                 // metrics.lsn.set(last_commit_lsn.into());
                             }
+
+                            LogicalReplicationMessage::Commit(commit) => {
+                                last_commit_lsn = PgLsn::from(commit.end_lsn());
+                                println!("======== COMMIT ==========");
+                                let serialized_xlog = serde_json::to_string_pretty(&SerializedXLogDataBody(xlog_data)).unwrap();
+                                println!("{}", serialized_xlog);
+                                println!("======== END OF the COMMIT MESSAGE JSON  ==========");
+                            }
                             LogicalReplicationMessage::Begin(begin) => {
-                                // metrics.transactions.inc();
                                 last_commit_lsn = PgLsn::from(begin.final_lsn());
-                                let data = &xlog_data.data();
-                                println!("======== HERE IS the BEGIN MESSAGE JSON  ==========");
-                                let serialized_xlog_data = serde_json::to_string_pretty(&SerializedLogicalReplicationMessage(data)).unwrap();
-                                println!("{}", serialized_xlog_data);
+                                println!("======== BEGIN ==========");
+                                let serialized_xlog = serde_json::to_string_pretty(&SerializedXLogDataBody(xlog_data)).unwrap();
+                                println!("{}", serialized_xlog);
                                 println!("======== END OF the BEGIN MESSAGE JSON  ==========");
-                                // for (output, row) in deletes.drain(..) {
-                                //     yield Event::Message(last_commit_lsn, (output, row, -1));
-                                // }
-                                // for (output, row) in inserts.drain(..) {
-                                //     yield Event::Message(last_commit_lsn, (output, row, 1));
-                                // }
-                                // yield Event::Progress([PgLsn::from(u64::from(last_commit_lsn) + 1)]);
-                                // metrics.lsn.set(last_commit_lsn.into());
+
+                            }
+
+                            LogicalReplicationMessage::Insert(_insert) => {
+                                println!("======== INSERT ==========");
+                                let serialized_xlog = serde_json::to_string_pretty(&SerializedXLogDataBody(xlog_data)).unwrap();
+                                println!("{}", serialized_xlog);
+                                println!("======== END OF the INSERT MESSAGE JSON  ==========");
+                            }
+
+                            LogicalReplicationMessage::Update(_update) => {
+                                println!("======== UPDATE  ==========");
+                                let serialized_xlog = serde_json::to_string_pretty(&SerializedXLogDataBody(xlog_data)).unwrap();
+                                println!("{}", serialized_xlog);
+                                println!("======== END OF the UPDATE MESSAGE JSON  ==========");
+                            }
+
+                            LogicalReplicationMessage::Delete(_delete) => {
+                                println!("======== DELETE ==========");
+                                let serialized_xlog = serde_json::to_string_pretty(&SerializedXLogDataBody(xlog_data)).unwrap();
+                                println!("{}", serialized_xlog);
+                                println!("======== END OF the DELETE MESSAGE JSON  ==========");
+                            }
+
+                            LogicalReplicationMessage::Relation(_relation) => {
+                                println!("======== RELATION ==========");
+                                let serialized_xlog = serde_json::to_string_pretty(&SerializedXLogDataBody(xlog_data)).unwrap();
+                                println!("{}", serialized_xlog);
+                                println!("======== END OF the RELATION MESSAGE JSON  ==========");
                             }
                             _ => yield xlog_data,
                         }
